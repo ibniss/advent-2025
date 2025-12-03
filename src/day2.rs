@@ -37,12 +37,36 @@ fn is_id_invalid(id: u64) -> bool {
     let front_digits = id / divisor;
     let back_digits = id % divisor;
 
-    // found invalid ids
-    if front_digits == back_digits {
-        return true;
+    front_digits == back_digits
+}
+
+/// Whether ID has a repeating sequence of length divisor_len, with precomputed digit_count
+fn is_repeated_sequence(id: u64, divisor_len: u32, digit_count: u32) -> bool {
+    // 10^n is the divisor
+    let divisor = 10u64.pow(divisor_len);
+
+    // mod gives us the potential repeating sequence, e.g. 121212 mod 100 (divisor len 2) = 12
+    let sequence = id % divisor;
+
+    // keep track of a current number to keep dividing N times by the divisor to check if its
+    // still repeating the pattern
+    let mut num = id;
+
+    // now, the front digits will be repeated N-1 times again where N is digit_count / divisor_len
+    for _ in 0..(digit_count / divisor_len - 1) {
+        num /= divisor;
+
+        let new_sequence = num % divisor;
+
+        if new_sequence != sequence {
+            // if the new seq are not the same then sequence is not repeating,
+            // thus we can continue with the next divisor
+            return false;
+        }
     }
 
-    return false;
+    // if we haven't broken the inner loop, then the back sequence is repeating
+    true
 }
 
 /// Check if id is invalid strictly
@@ -51,44 +75,9 @@ fn is_id_invalid(id: u64) -> bool {
 fn is_id_invalid_strict(id: u64) -> bool {
     let digit_count = (id as f64).log10().floor() as u32 + 1;
 
-    // Possible divisors are divisors of the digit count (including 1)
-    let divisor_lengths = divisors(digit_count);
-
-    // for each divisor, check if the sequence of that length is repeated
-    'outer: for divisor_len in divisor_lengths {
-        // don't consider the divisor itself as then sequence wouldn't be repeated
-        if divisor_len == digit_count {
-            continue;
-        }
-
-        // 10^n is the divisor
-        let divisor = 10u64.pow(divisor_len);
-
-        // mod gives us the potential repeating sequence, e.g. 121212 mod 100 (divisor len 2) = 12
-        let sequence = id % divisor;
-
-        // keep track of a current number to keep dividing N times by the divisor to check if its
-        // still repeating the pattern
-        let mut num = id;
-
-        // now, the front digits will be repeated N-1 times again where N is digit_count / divisor_len
-        for _ in 0..(digit_count / divisor_len - 1) {
-            num = num / divisor;
-
-            let new_sequence = num % divisor;
-
-            if new_sequence != sequence {
-                // if the new seq are not the same then sequence is not repeating,
-                // thus we can continue with the next divisor
-                continue 'outer;
-            }
-        }
-
-        // if we haven't broken the inner loop, then the back sequence is repeating
-        return true;
-    }
-
-    return false;
+    divisors(digit_count)
+        .into_iter()
+        .any(|dl| dl < digit_count && is_repeated_sequence(id, dl, digit_count))
 }
 
 /// Finds all invalid IDs in a range of IDs
@@ -107,26 +96,16 @@ fn get_invalid_ids_strict(range: RangeInclusive<u64>) -> impl Iterator<Item = u6
 fn get_ranges(input: &str) -> impl Iterator<Item = RangeInclusive<u64>> {
     return input.trim().split(',').filter_map(|ids| {
         let mut parts = ids.split('-').map(|id| id.parse::<u64>());
-        let first = parts.next().expect("Missing first ID");
-        let last = parts.next().expect("Missing last ID");
+        let first = parts.next().expect("Missing first ID").ok()?;
+        let last = parts.next().expect("Missing last ID").ok()?;
 
-        if let Err(err) = first {
-            println!("Invalid first part of ID: {ids}, err: {err}");
-            return None;
-        }
-
-        if let Err(err) = last {
-            println!("Invalid last part of ID: {ids}, err: {err}");
-            return None;
-        }
-
-        return Some(first.unwrap()..=last.unwrap());
+        Some(first..=last)
     });
 }
 
 pub fn run(input: &str) {
     // PART 1:
-    // let sum_invalid = get_ranges(input).flat_map(|range| get_invalid_ids(range)).count();
+    // let sum_invalid: u64 = get_ranges(input).flat_map(|range| get_invalid_ids(range)).sum();
     // PART 2:
     let sum_invalid: u64 = get_ranges(input)
         .flat_map(|range| get_invalid_ids_strict(range))
