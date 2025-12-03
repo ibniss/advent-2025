@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use std::ops::RangeInclusive;
 
 /// get divisors of a number (with square root optimization)
@@ -108,7 +109,10 @@ pub fn run(input: &str) {
     // let sum_invalid: u64 = get_ranges(input).flat_map(|range| get_invalid_ids(range)).sum();
     // PART 2:
     let sum_invalid: u64 = get_ranges(input)
-        .flat_map(|range| get_invalid_ids_strict(range))
+        .collect::<Vec<_>>()
+        .into_par_iter() // test out rayon for parallel iterator, takes it from ~45ms to ~8ms on
+        // 9800x3d cpu
+        .flat_map(|range| get_invalid_ids_strict(range).collect::<Vec<_>>())
         .sum();
     dbg!(sum_invalid);
 }
