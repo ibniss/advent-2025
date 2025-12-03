@@ -158,10 +158,10 @@ mod tests {
     11-22,95-115,998-1012,1188511880-1188511890,222220-222224,\
     1698522-1698528,446443-446449,38593856-38593862,565653-565659,\
     824824821-824824827,2121212118-2121212124";
-        let count_invalid = get_ranges(input)
-            .flat_map(|range| get_invalid_ids_strict(range))
-            .count();
-        assert_eq!(count_invalid, 1227775554);
+        let sum_invalid: u64 = get_ranges(input)
+            .flat_map(|range| get_invalid_ids(range))
+            .sum();
+        assert_eq!(sum_invalid, 1227775554);
     }
 
     #[test]
@@ -195,5 +195,17 @@ mod tests {
             get_invalid_ids_strict(2121212118..=2121212124).collect::<Vec<_>>(),
             vec![2121212121]
         );
+    }
+
+    #[test]
+    fn test_input_2() {
+        let input = "\
+    11-22,95-115,998-1012,1188511880-1188511890,222220-222224,\
+    1698522-1698528,446443-446449,38593856-38593862,565653-565659,\
+    824824821-824824827,2121212118-2121212124";
+        let sum_invalid: u64 = get_ranges(input)
+            .flat_map(|range| get_invalid_ids_strict(range))
+            .sum();
+        assert_eq!(sum_invalid, 4174379265);
     }
 }
