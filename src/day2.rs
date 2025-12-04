@@ -1,6 +1,8 @@
 use rayon::prelude::*;
 use std::ops::RangeInclusive;
 
+use crate::solution::{Solution, SolutionPair};
+
 /// get divisors of a number (with square root optimization)
 fn divisors(n: u32) -> Vec<u32> {
     let mut res = Vec::new();
@@ -104,17 +106,22 @@ fn get_ranges(input: &str) -> impl Iterator<Item = RangeInclusive<u64>> {
     });
 }
 
-pub fn run(input: &str) {
-    // PART 1:
-    // let sum_invalid: u64 = get_ranges(input).flat_map(|range| get_invalid_ids(range)).sum();
-    // PART 2:
-    let sum_invalid: u64 = get_ranges(input)
+pub fn solve(input: &str) -> SolutionPair {
+    let ranges = get_ranges(input).collect::<Vec<_>>();
+
+    let sum_invalid_1: u64 = ranges
+        .iter()
+        .flat_map(|range| get_invalid_ids(range.clone()))
+        .sum();
+    let sum_invalid_2: u64 = ranges
+        .iter()
         .collect::<Vec<_>>()
         .into_par_iter() // test out rayon for parallel iterator, takes it from ~45ms to ~8ms on
         // 9800x3d cpu
-        .flat_map(|range| get_invalid_ids_strict(range).collect::<Vec<_>>())
+        .flat_map(|range| get_invalid_ids_strict(range.clone()).collect::<Vec<_>>())
         .sum();
-    dbg!(sum_invalid);
+
+    (Solution::from(sum_invalid_1), Solution::from(sum_invalid_2))
 }
 
 #[cfg(test)]

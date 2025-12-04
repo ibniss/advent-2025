@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use crate::solution::{Solution, SolutionPair};
 
 const MAX_STEP: isize = 100; // where 100 == 0 basically
 
@@ -64,6 +65,16 @@ pub fn run(input: &str) {
     dbg!("Dial number is now {}", dial.number);
     dbg!("Counts of 0: {}", dial.counts.get(&0).unwrap());
     dbg!("Counts crossed zero: {}", dial.counts_crossed_zero);
+}
+
+pub fn solve(input: &str) -> SolutionPair {
+    let mut dial = Dial::new(50);
+    dial.apply_commands(input);
+
+    let sol1 = dial.counts.get(&0).unwrap();
+    let sol2 = dial.counts_crossed_zero;
+
+    (Solution::from(*sol1), Solution::from(sol2))
 }
 
 #[cfg(test)]

@@ -1,49 +1,41 @@
 use std::collections::LinkedList;
 
-fn find_largest_pair_linear(line: impl Iterator<Item = u8>) -> u8 {
-    let mut first_largest = 0;
-    let mut second_largest = 0;
+use crate::solution::{Solution, SolutionPair};
+
+fn find_largest_pair_linear(line: &[u8]) -> u8 {
+    let mut first = 0;
+    let mut second = 0;
 
     for c in line {
-        // first initialize the pair
-        if first_largest == 0 {
-            first_largest = c;
-            continue;
-        }
-
-        if second_largest == 0 {
-            second_largest = c;
-            continue;
-        }
-
         // then if second is larger than first, move it to first and take whatever number we're on
         // as second
-        if second_largest > first_largest {
-            first_largest = second_largest;
-            second_largest = c;
+        if second > first {
+            first = second;
+            second = *c;
             continue;
-        } else if c > second_largest {
+        } else if *c > second {
             // otherwise if current number is larger than second, move it to second
-            second_largest = c;
+            second = *c;
         }
     }
 
-    return first_largest * 10 + second_largest;
+    return first * 10 + second;
 }
 
-fn find_largest_twelve_linear(line: impl Iterator<Item = u8>) -> u64 {
+/// First attempt, initializing 12 numbers then considering each number linearly
+fn find_largest_twelve_linear(line: &[u8]) -> u64 {
     let mut outputs = LinkedList::from_iter([0; 12]);
 
-    for (i, c) in line.enumerate() {
+    for (i, c) in line.iter().enumerate() {
         // first initialize the 12 numbers, this is a bit inefficient but it happens 12 times per
         // row
         if i < 12 {
-            *outputs.iter_mut().nth(i).unwrap() = c;
+            *outputs.iter_mut().nth(i).unwrap() = *c;
             continue;
         }
 
         // then every time we iterate, add the new number to the end
-        outputs.push_back(c);
+        outputs.push_back(*c);
 
         // now we have 13 numbers, we have to pick one to drop
         // e.g. [234,234,234,234|2] (new marked) -> drop first 2 -> [342,342,342,342]
@@ -84,26 +76,68 @@ fn find_largest_twelve_linear(line: impl Iterator<Item = u8>) -> u64 {
         .sum()
 }
 
-fn solve_part1(input: &str) -> u64 {
+/// Second attempt, no need to initialize N numbers, just keep adding to a stack
+/// Its always best to remove items at the start, so we simply need to drop enough
+/// items at the start to make sure we have N items left
+fn find_largest_stack(line: &[u8], keep_count: usize) -> u64 {
+    let mut stack: Vec<u8> = Vec::new();
+    let to_remove = line.len() - keep_count;
+
+    let mut removed = 0;
+    for &digit in line {
+        // Only consider this while we still need to remove items (can only drop so many so 12
+        // stay) and while we have collected at least one item.
+        // If the previous number is smaller than the next one, remove it.
+        // We can keep removing the same item until we have the largest possible
+        // as this is the most significant digit and is always better than e.g. letting it through
+        // and then replacing another one later
+        while removed < to_remove && !stack.is_empty() && *stack.last().unwrap() < digit {
+            stack.pop();
+            removed += 1;
+        }
+        stack.push(digit);
+    }
+
+    // If we didn't remove enough, truncate from the end
+    stack.truncate(keep_count);
+
+    stack.iter().fold(0, |acc, &d| acc * 10 + (d as u64))
+}
+
+fn process_input(input: &str) -> Vec<Vec<u8>> {
     input
         .lines()
-        .map(|line| find_largest_pair_linear(line.chars().map(|c| c.to_digit(10).unwrap() as u8)))
+        .map(|line| {
+            line.chars()
+                .map(|c| c.to_digit(10).unwrap() as u8)
+                .collect()
+        })
+        .collect()
+}
+
+fn solve_part1(input: &[Vec<u8>]) -> u64 {
+    input
+        .iter()
+        .map(|line| find_largest_pair_linear(line))
         .map(u64::from)
         .sum()
 }
 
-fn solve_part2(input: &str) -> u64 {
+fn solve_part2(input: &[Vec<u8>]) -> u64 {
     input
-        .lines()
-        .map(|line| find_largest_twelve_linear(line.chars().map(|c| c.to_digit(10).unwrap() as u8)))
+        .iter()
+        // .map(|line| find_largest_twelve_linear(line))
+        .map(|line| find_largest_stack(line, 12))
         .map(u64::from)
         .sum()
 }
 
-pub fn run(input: &str) {
-    // let sum = solve_part1(input);
-    let sum = solve_part2(input);
-    dbg!(sum);
+pub fn solve(input: &str) -> SolutionPair {
+    let processed_input = process_input(input);
+
+    let sum_1: u64 = solve_part1(&processed_input);
+    let sum_2: u64 = solve_part2(&processed_input);
+    (Solution::from(sum_1), Solution::from(sum_2))
 }
 
 #[cfg(test)]
@@ -118,29 +152,29 @@ mod tests {
 
     #[test]
     fn test_input_1() {
-        assert_eq!(solve_part1(TEST_INPUT), 357);
+        assert_eq!(solve_part1(&process_input(TEST_INPUT)), 357);
     }
 
     #[test]
     fn test_largest_12_1() {
-        let line: [u8; 15] = [9, 8, 7, 6, 5, 4, 3, 2, 1, 1, 1, 1, 1, 1, 1];
-        assert_eq!(find_largest_twelve_linear(line.into_iter()), 987654321111);
+        let line = vec![9, 8, 7, 6, 5, 4, 3, 2, 1, 1, 1, 1, 1, 1, 1];
+        assert_eq!(find_largest_twelve_linear(&line), 987654321111);
     }
 
     #[test]
     fn test_largest_12_2() {
-        let line: [u8; 15] = [8, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 9];
-        assert_eq!(find_largest_twelve_linear(line.into_iter()), 811111111119);
+        let line = vec![8, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 9];
+        assert_eq!(find_largest_twelve_linear(&line), 811111111119);
     }
 
     #[test]
     fn test_largest_12_3() {
-        let line: [u8; 15] = [2, 3, 4, 2, 3, 4, 2, 3, 4, 2, 3, 4, 2, 7, 8];
-        assert_eq!(find_largest_twelve_linear(line.into_iter()), 434234234278);
+        let line = vec![2, 3, 4, 2, 3, 4, 2, 3, 4, 2, 3, 4, 2, 7, 8];
+        assert_eq!(find_largest_twelve_linear(&line), 434234234278);
     }
 
     #[test]
     fn test_input_2() {
-        assert_eq!(solve_part2(TEST_INPUT), 3121910778619);
+        assert_eq!(solve_part2(&process_input(TEST_INPUT)), 3121910778619);
     }
 }
