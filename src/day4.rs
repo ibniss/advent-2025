@@ -1,134 +1,92 @@
+use std::collections::HashSet;
+
 use crate::solution::{Solution, SolutionPair};
 
-const POSITION_OFFSETS: [(i32, i32); 8] = [
-    (-1, -1),
-    (0, -1),
-    (1, -1),
-    (-1, 0),
-    (1, 0),
-    (-1, 1),
-    (0, 1),
-    (1, 1),
-];
+const ROLL: u8 = b'@';
+const BLANK: u8 = b'.';
 
-const ROLL: char = '@';
-const BLANK: char = '.';
+type Grid = Vec<Vec<u8>>;
+type Pos = (usize, usize);
 
-fn parse_input(input: &str) -> Vec<Vec<char>> {
-    input
-        .lines()
-        .map(|line| line.chars().map(|c| c.to_ascii_lowercase()).collect())
-        .collect()
+fn parse_input(input: &str) -> Grid {
+    input.lines().map(|line| line.as_bytes().to_vec()).collect()
 }
 
-/// One-pass find of removable rolls
-fn find_rolls(input: &[Vec<char>]) -> Vec<(i32, i32)> {
-    let mut accessible_rolls = Vec::new();
-
-    let max_x = input[0].len() as i32 - 1;
-    let max_y = input.len() as i32 - 1;
-
-    for (y, line) in input.iter().enumerate() {
-        for (x, c) in line.iter().enumerate() {
-            // when a roll is found (@), count number of adjacent rolls (@)
-            if *c == ROLL {
-                let valid_positions: Vec<(i32, i32)> = POSITION_OFFSETS
-                    .iter()
-                    .map(|offset| (x as i32 + offset.0, y as i32 + offset.1))
-                    .filter(|(px, py)| {
-                        // check bounds
-                        *px >= 0 && *py >= 0 && *px <= max_x && *py <= max_y
-                    })
-                    .collect();
-
-                // Find rolls in valid positions
-                let mut all_around_rolls = Vec::new();
-                for (px, py) in &valid_positions {
-                    let c = input
-                        .get(*py as usize)
-                        .and_then(|line| line.get(*px as usize))
-                        .unwrap();
-
-                    if *c == ROLL {
-                        all_around_rolls.push((px, py));
-                    }
-                }
-
-                // too many rolls around, skip
-                if all_around_rolls.len() >= 4 {
-                    continue;
-                }
-
-                // otherwise add it to the list of accessible rolls
-                accessible_rolls.push((x as i32, y as i32));
-            }
-        }
-    }
-
-    accessible_rolls
+/// Get valid neighboring positions for a given (x, y) coordinate
+#[inline]
+fn neighbors(x: usize, y: usize, width: usize, height: usize) -> impl Iterator<Item = Pos> {
+    [
+        (x.wrapping_sub(1), y.wrapping_sub(1)),
+        (x, y.wrapping_sub(1)),
+        (x + 1, y.wrapping_sub(1)),
+        (x.wrapping_sub(1), y),
+        (x + 1, y),
+        (x.wrapping_sub(1), y + 1),
+        (x, y + 1),
+        (x + 1, y + 1),
+    ]
+    .into_iter()
+    .filter(move |(nx, ny)| *nx < width && *ny < height)
 }
 
-/// Pass through the input and remove all rolls that can be removed.
-/// Mutates the input to remove rolls and returns the list of removed rolls.
-fn find_remove_rolls(input: &mut [Vec<char>]) -> Vec<(i32, i32)> {
-    let mut accessible_rolls = Vec::new();
+/// Count accessible rolls (part 1)
+fn count_accessible(grid: &Grid) -> usize {
+    let (width, height) = (grid[0].len(), grid.len());
 
-    let max_x = input[0].len() as i32 - 1;
-    let max_y = input.len() as i32 - 1;
-
-    for y in 0..input.len() {
-        for x in 0..input[y].len() {
-            // when a roll is found (@), count number of adjacent rolls (@)
-            if input[y][x] == ROLL {
-                let valid_positions: Vec<(i32, i32)> = POSITION_OFFSETS
-                    .iter()
-                    .map(|offset| (x as i32 + offset.0, y as i32 + offset.1))
-                    .filter(|(px, py)| {
-                        // check bounds
-                        *px >= 0 && *py >= 0 && *px <= max_x && *py <= max_y
-                    })
-                    .collect();
-
-                // Find rolls in valid positions
-                let mut all_around_rolls = Vec::new();
-                for (px, py) in &valid_positions {
-                    let c = input
-                        .get(*py as usize)
-                        .and_then(|line| line.get(*px as usize))
-                        .unwrap();
-
-                    if *c == ROLL {
-                        all_around_rolls.push((*px, *py));
-                    }
+    grid.iter()
+        .enumerate()
+        .flat_map(|(y, row)| {
+            row.iter().enumerate().filter_map(move |(x, &cell)| {
+                if cell == ROLL {
+                    let adjacent = neighbors(x, y, width, height)
+                        .filter(|&(nx, ny)| grid[ny][nx] == ROLL)
+                        .count();
+                    (adjacent < 4).then_some(1)
+                } else {
+                    None
                 }
-
-                // too many rolls around, skip
-                if all_around_rolls.len() >= 4 {
-                    continue;
-                }
-
-                // otherwise add it to the list of accessible rolls
-                accessible_rolls.push((x as i32, y as i32));
-
-                // remove the roll by setting the char to '.'
-                input[y][x] = BLANK;
-            }
-        }
-    }
-
-    accessible_rolls
+            })
+        })
+        .sum()
 }
 
-// Remove as many rolls as possible. Keeps running remove_rolls until no more rolls can be removed
-fn remove_all_rolls(input: &mut [Vec<char>]) -> usize {
+/// Remove as many rolls as possible using candidate tracking (part 2)
+fn remove_all_rolls(grid: &mut Grid) -> usize {
+    let (width, height) = (grid[0].len(), grid.len());
     let mut total_removed = 0;
 
-    loop {
-        let removed = find_remove_rolls(input);
-        if removed.is_empty() {
-            break;
+    // Initialize candidates with only roll positions
+    let mut candidates: HashSet<Pos> = grid
+        .iter()
+        .enumerate()
+        .flat_map(|(y, row)| {
+            row.iter()
+                .enumerate()
+                .filter(|&(_, &cell)| cell == ROLL)
+                .map(move |(x, _)| (x, y))
+        })
+        .collect();
+
+    while !candidates.is_empty() {
+        let mut next_candidates = HashSet::new();
+
+        for (x, y) in candidates.drain() {
+            if grid[y][x] != ROLL {
+                continue;
+            }
+
+            let adjacent: Vec<Pos> = neighbors(x, y, width, height)
+                .filter(|&(nx, ny)| grid[ny][nx] == ROLL)
+                .collect();
+
+            if adjacent.len() < 4 {
+                total_removed += 1;
+                grid[y][x] = BLANK;
+                next_candidates.extend(adjacent);
+            }
         }
-        total_removed += removed.len();
+
+        candidates = next_candidates;
     }
 
     total_removed
@@ -136,10 +94,10 @@ fn remove_all_rolls(input: &mut [Vec<char>]) -> usize {
 
 pub fn solve(input: &str) -> SolutionPair {
     let parsed = parse_input(input);
-    let one_pass_size = find_rolls(&parsed.clone()).len();
+    let one_pass_count = count_accessible(&parsed);
     let infinite_pass_size = remove_all_rolls(&mut parsed.clone());
     (
-        Solution::from(one_pass_size),
+        Solution::from(one_pass_count),
         Solution::from(infinite_pass_size),
     )
 }
@@ -163,8 +121,8 @@ mod tests {
     #[test]
     fn test_input_1() {
         let parsed = parse_input(TEST_INPUT);
-        let rolls = find_rolls(&parsed);
-        assert_eq!(rolls.len(), 13);
+        let rolls = count_accessible(&parsed);
+        assert_eq!(rolls, 13);
     }
 
     #[test]
