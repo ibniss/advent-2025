@@ -6,6 +6,7 @@ use std::time::Instant;
 mod day1;
 mod day2;
 mod day3;
+mod day4;
 mod solution;
 
 #[derive(Parser, Debug)]
@@ -37,6 +38,7 @@ fn get_day_solver(day: u8) -> fn(&str) -> solution::SolutionPair {
         1 => day1::solve,
         2 => day2::solve,
         3 => day3::solve,
+        4 => day4::solve,
         _ => panic!("Day {} not implemented", day),
     }
 }
