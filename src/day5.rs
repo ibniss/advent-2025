@@ -33,11 +33,12 @@ fn parse_input(input: &str) -> (Vec<RangeInclusive<usize>>, Vec<usize>) {
 
         if let Some(cur_range) = &current_range {
             // check if range overlaps with current range
-            // i.e. it starts in the middle of the current range and ends AFTER the end of the current range
-            // otherwise it could just be a subset
-            if next_range.start() <= cur_range.end() && next_range.end() >= cur_range.end() {
-                // if it does, merge the ranges
-                current_range = Some(RangeInclusive::new(*cur_range.start(), *next_range.end()));
+            if next_range.start() <= cur_range.end() {
+                // make sure to take max as they could be subsets
+                current_range = Some(RangeInclusive::new(
+                    *cur_range.start(),
+                    *cur_range.end().max(next_range.end()),
+                ));
             } else {
                 // otherwise push current range to merged_ranges
                 merged_ranges.push(cur_range.clone());
@@ -69,10 +70,18 @@ fn filter_ingredients(ranges: &[RangeInclusive<usize>], values: &[usize]) -> Vec
         .collect();
 }
 
+fn count_all_fresh(ranges: &[RangeInclusive<usize>]) -> usize {
+    return ranges
+        .iter()
+        // inclusive so +1
+        .fold(0, |acc, range| acc + (range.end() - range.start() + 1));
+}
+
 pub fn solve(input: &str) -> SolutionPair {
     let (ranges, values) = parse_input(input);
     let ingredients = filter_ingredients(&ranges, &values);
-    (Solution::from(ingredients.len()), Solution::from(0))
+    let count = count_all_fresh(&ranges);
+    (Solution::from(ingredients.len()), Solution::from(count))
 }
 
 #[cfg(test)]
@@ -96,5 +105,12 @@ mod tests {
         let (ranges, values) = parse_input(TEST_INPUT);
         let ingredients = filter_ingredients(&ranges, &values);
         assert_eq!(ingredients.len(), 3);
+    }
+
+    #[test]
+    fn test_solve_part_2() {
+        let (ranges, _) = parse_input(TEST_INPUT);
+        let count = count_all_fresh(&ranges);
+        assert_eq!(count, 14);
     }
 }
