@@ -16,6 +16,10 @@ fn parse_input(input: &str) -> (Vec<RangeInclusive<usize>>, Vec<usize>) {
                 .expect("Invalid line, could not find - to split");
             let start: usize = parts.0.parse().expect("Invalid start");
             let end: usize = parts.1.parse().expect("Invalid end");
+            // handle ranges that are backwards
+            if start > end {
+                return end..=start;
+            }
             start..=end
         })
         .collect::<Vec<_>>();
@@ -28,12 +32,10 @@ fn parse_input(input: &str) -> (Vec<RangeInclusive<usize>>, Vec<usize>) {
     // Merge overlapping ranges
     let mut current_range: Option<RangeInclusive<usize>> = None;
 
-    for i in 0..ranges.len() {
-        let next_range = ranges.get(i).expect("No next range found");
-
+    for next_range in &ranges {
         if let Some(cur_range) = &current_range {
-            // check if range overlaps with current range
-            if next_range.start() <= cur_range.end() {
+            // check if range overlaps with current range or is next to it
+            if *next_range.start() <= (cur_range.end() + 1) {
                 // make sure to take max as they could be subsets
                 current_range = Some(RangeInclusive::new(
                     *cur_range.start(),
@@ -62,24 +64,47 @@ fn parse_input(input: &str) -> (Vec<RangeInclusive<usize>>, Vec<usize>) {
     (merged_ranges, values)
 }
 
-fn filter_ingredients(ranges: &[RangeInclusive<usize>], values: &[usize]) -> Vec<usize> {
-    return values
+// Naive linear search, first attempt
+// fn filter_ingredients(ranges: &[RangeInclusive<usize>], values: &[usize]) -> Vec<usize> {
+//     values
+//         .iter()
+//         .filter(|&v| ranges.iter().any(|r| r.contains(v)))
+//         .cloned()
+//         .collect()
+// }
+
+// Binary search
+fn filter_ingredients_bs(ranges: &[RangeInclusive<usize>], values: &[usize]) -> Vec<usize> {
+    values
         .iter()
-        .filter(|&v| ranges.iter().any(|r| r.contains(v)))
+        .filter(|&v| {
+            ranges
+                .binary_search_by(|r| {
+                    if v < r.start() {
+                        std::cmp::Ordering::Greater
+                    } else if v > r.end() {
+                        std::cmp::Ordering::Less
+                    } else {
+                        std::cmp::Ordering::Equal
+                    }
+                })
+                .is_ok()
+        })
         .cloned()
-        .collect();
+        .collect()
 }
 
 fn count_all_fresh(ranges: &[RangeInclusive<usize>]) -> usize {
-    return ranges
+    ranges
         .iter()
         // inclusive so +1
-        .fold(0, |acc, range| acc + (range.end() - range.start() + 1));
+        .map(|range| (range.end() - range.start() + 1) as usize)
+        .sum()
 }
 
 pub fn solve(input: &str) -> SolutionPair {
     let (ranges, values) = parse_input(input);
-    let ingredients = filter_ingredients(&ranges, &values);
+    let ingredients = filter_ingredients_bs(&ranges, &values);
     let count = count_all_fresh(&ranges);
     (Solution::from(ingredients.len()), Solution::from(count))
 }
@@ -103,7 +128,7 @@ mod tests {
     #[test]
     fn test_solve() {
         let (ranges, values) = parse_input(TEST_INPUT);
-        let ingredients = filter_ingredients(&ranges, &values);
+        let ingredients = filter_ingredients_bs(&ranges, &values);
         assert_eq!(ingredients.len(), 3);
     }
 
