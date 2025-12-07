@@ -6,6 +6,7 @@ use std::fs;
 use std::time::Instant;
 
 mod grid;
+mod position;
 mod solution;
 mod utils;
 
@@ -62,7 +63,7 @@ macro_rules! register_days {
 }
 
 // Register all implemented days - just list them in order!
-register_days!(day1, day2, day3, day4, day5, day6);
+register_days!(day1, day2, day3, day4, day5, day6, day7);
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

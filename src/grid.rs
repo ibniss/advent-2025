@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use crate::position::Position;
+
 /// A 2D grid backed by a flat 1D array for better cache locality.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Grid<T> {
@@ -150,6 +152,73 @@ impl<T: Clone> Grid<T> {
         .into_iter()
         .filter(move |(nx, ny)| *nx < width && *ny < height)
     }
+
+    // === Position-based methods ===
+
+    /// Get a reference to the cell at the given Position, or None if out of bounds.
+    #[inline]
+    pub fn get_pos(&self, pos: Position) -> Option<&T> {
+        self.get(pos.x, pos.y)
+    }
+
+    /// Get a mutable reference to the cell at the given Position, or None if out of bounds.
+    #[inline]
+    pub fn get_pos_mut(&mut self, pos: Position) -> Option<&mut T> {
+        self.get_mut(pos.x, pos.y)
+    }
+
+    /// Set the cell at the given Position. Panics if out of bounds.
+    #[inline]
+    pub fn set_pos(&mut self, pos: Position, value: T) {
+        self.set(pos.x, pos.y, value)
+    }
+
+    /// Check if a Position is within the grid bounds.
+    #[inline]
+    pub fn contains(&self, pos: Position) -> bool {
+        pos.x < self.width && pos.y < self.height
+    }
+
+    /// Get the 4 cardinal neighbors (up, down, left, right) as Positions.
+    #[inline]
+    pub fn cardinal_neighbors(&self, pos: Position) -> impl Iterator<Item = Position> {
+        let width = self.width;
+        let height = self.height;
+        [
+            pos.up(),
+            Some(pos.down()),
+            pos.left(),
+            Some(pos.right()),
+        ]
+        .into_iter()
+        .flatten()
+        .filter(move |p| p.x < width && p.y < height)
+    }
+
+    /// Get the 8 neighboring positions as Positions (excluding out-of-bounds).
+    #[inline]
+    pub fn neighbors_pos(&self, pos: Position) -> impl Iterator<Item = Position> {
+        self.neighbors(pos.x, pos.y).map(Position::from)
+    }
+
+    /// Iterate over all cells with their Position.
+    pub fn iter_with_pos(&self) -> impl Iterator<Item = (Position, &T)> {
+        self.data.iter().enumerate().map(|(i, val)| {
+            let x = i % self.width;
+            let y = i / self.width;
+            (Position::new(x, y), val)
+        })
+    }
+
+    /// Find the first position where the predicate returns true.
+    pub fn find_pos<F>(&self, predicate: F) -> Option<Position>
+    where
+        F: Fn(&T) -> bool,
+    {
+        self.iter_with_pos()
+            .find(|(_, val)| predicate(val))
+            .map(|(pos, _)| pos)
+    }
 }
 
 impl Grid<u8> {
@@ -173,6 +242,23 @@ impl<T: Clone> std::ops::IndexMut<(usize, usize)> for Grid<T> {
     #[inline]
     fn index_mut(&mut self, (x, y): (usize, usize)) -> &mut Self::Output {
         let idx = y * self.width + x;
+        &mut self.data[idx]
+    }
+}
+
+impl<T: Clone> std::ops::Index<Position> for Grid<T> {
+    type Output = T;
+
+    #[inline]
+    fn index(&self, pos: Position) -> &Self::Output {
+        &self.data[pos.y * self.width + pos.x]
+    }
+}
+
+impl<T: Clone> std::ops::IndexMut<Position> for Grid<T> {
+    #[inline]
+    fn index_mut(&mut self, pos: Position) -> &mut Self::Output {
+        let idx = pos.y * self.width + pos.x;
         &mut self.data[idx]
     }
 }
