@@ -1,6 +1,6 @@
 use std::ops::RangeInclusive;
 
-use crate::solution::{Solution, SolutionPair};
+use crate::solution::Day;
 
 fn parse_input(input: &str) -> (Vec<RangeInclusive<usize>>, Vec<usize>) {
     let (ranges, values) = input
@@ -85,11 +85,26 @@ fn count_all_fresh(ranges: &[RangeInclusive<usize>]) -> usize {
         .sum()
 }
 
-pub fn solve(input: &str) -> SolutionPair {
-    let (ranges, values) = parse_input(input);
-    let ingredients = filter_ingredients_bs(&ranges, &values);
-    let count = count_all_fresh(&ranges);
-    (Solution::from(ingredients.len()), Solution::from(count))
+pub struct Solution;
+
+impl Day for Solution {
+    fn part1(input: &str) -> crate::solution::Solution {
+        let (ranges, values) = parse_input(input);
+        filter_ingredients_bs(&ranges, &values).len().into()
+    }
+
+    fn part2(input: &str) -> crate::solution::Solution {
+        let (ranges, _) = parse_input(input);
+        count_all_fresh(&ranges).into()
+    }
+
+    // Override to avoid parsing twice
+    fn solve(input: &str) -> crate::solution::SolutionPair {
+        let (ranges, values) = parse_input(input);
+        let ingredients = filter_ingredients_bs(&ranges, &values);
+        let count = count_all_fresh(&ranges);
+        (ingredients.len().into(), count.into())
+    }
 }
 
 #[cfg(test)]

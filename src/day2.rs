@@ -1,7 +1,7 @@
 use rayon::prelude::*;
 use std::ops::RangeInclusive;
 
-use crate::solution::{Solution, SolutionPair};
+use crate::solution::Day;
 
 /// get divisors of a number (with square root optimization)
 fn divisors(n: u32) -> Vec<u32> {
@@ -106,22 +106,29 @@ fn get_ranges(input: &str) -> impl Iterator<Item = RangeInclusive<u64>> {
     });
 }
 
-pub fn solve(input: &str) -> SolutionPair {
-    let ranges = get_ranges(input).collect::<Vec<_>>();
+pub struct Solution;
 
-    let sum_invalid_1: u64 = ranges
-        .iter()
-        .flat_map(|range| get_invalid_ids(range.clone()))
-        .sum();
-    let sum_invalid_2: u64 = ranges
-        .iter()
-        .collect::<Vec<_>>()
-        .into_par_iter() // test out rayon for parallel iterator, takes it from ~45ms to ~8ms on
-        // 9800x3d cpu
-        .flat_map(|range| get_invalid_ids_strict(range.clone()).collect::<Vec<_>>())
-        .sum();
+impl Day for Solution {
+    fn part1(input: &str) -> crate::solution::Solution {
+        let ranges = get_ranges(input).collect::<Vec<_>>();
+        let sum_invalid: u64 = ranges
+            .iter()
+            .flat_map(|range| get_invalid_ids(range.clone()))
+            .sum();
+        sum_invalid.into()
+    }
 
-    (Solution::from(sum_invalid_1), Solution::from(sum_invalid_2))
+    fn part2(input: &str) -> crate::solution::Solution {
+        let ranges = get_ranges(input).collect::<Vec<_>>();
+        let sum_invalid: u64 = ranges
+            .iter()
+            .collect::<Vec<_>>()
+            .into_par_iter() // test out rayon for parallel iterator, takes it from ~45ms to ~8ms on
+            // 9800x3d cpu
+            .flat_map(|range| get_invalid_ids_strict(range.clone()).collect::<Vec<_>>())
+            .sum();
+        sum_invalid.into()
+    }
 }
 
 #[cfg(test)]

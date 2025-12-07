@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::grid::Grid;
-use crate::solution::{Solution, SolutionPair};
+use crate::solution::Day;
 
 const ROLL: u8 = b'@';
 const BLANK: u8 = b'.';
@@ -59,14 +59,18 @@ fn remove_all_rolls(grid: &mut Grid<u8>) -> usize {
     total_removed
 }
 
-pub fn solve(input: &str) -> SolutionPair {
-    let grid = Grid::parse(input);
-    let one_pass_count = count_accessible(&grid);
-    let infinite_pass_size = remove_all_rolls(&mut grid.clone());
-    (
-        Solution::from(one_pass_count),
-        Solution::from(infinite_pass_size),
-    )
+pub struct Solution;
+
+impl Day for Solution {
+    fn part1(input: &str) -> crate::solution::Solution {
+        let grid = Grid::parse(input);
+        count_accessible(&grid).into()
+    }
+
+    fn part2(input: &str) -> crate::solution::Solution {
+        let mut grid = Grid::parse(input);
+        remove_all_rolls(&mut grid).into()
+    }
 }
 
 #[cfg(test)]

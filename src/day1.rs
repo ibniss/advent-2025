@@ -1,4 +1,4 @@
-use crate::solution::{Solution, SolutionPair};
+use crate::solution::Day;
 use std::collections::HashMap;
 
 const MAX_STEP: isize = 100; // where 100 == 0 basically
@@ -37,7 +37,6 @@ impl Dial {
     }
 
     fn apply_command(&mut self, command: &str) {
-        dbg!(command);
         let rotation = command
             .chars()
             .next()
@@ -59,14 +58,32 @@ impl Dial {
     }
 }
 
-pub fn solve(input: &str) -> SolutionPair {
+fn run_dial(input: &str) -> Dial {
     let mut dial = Dial::new(50);
     dial.apply_commands(input);
+    dial
+}
 
-    let sol1 = dial.counts.get(&0).unwrap();
-    let sol2 = dial.counts_crossed_zero;
+pub struct Solution;
 
-    (Solution::from(*sol1), Solution::from(sol2))
+impl Day for Solution {
+    fn part1(input: &str) -> crate::solution::Solution {
+        let dial = run_dial(input);
+        (*dial.counts.get(&0).unwrap()).into()
+    }
+
+    fn part2(input: &str) -> crate::solution::Solution {
+        let dial = run_dial(input);
+        dial.counts_crossed_zero.into()
+    }
+
+    // Override default to avoid running dial twice
+    fn solve(input: &str) -> crate::solution::SolutionPair {
+        let dial = run_dial(input);
+        let sol1 = *dial.counts.get(&0).unwrap();
+        let sol2 = dial.counts_crossed_zero;
+        (sol1.into(), sol2.into())
+    }
 }
 
 #[cfg(test)]

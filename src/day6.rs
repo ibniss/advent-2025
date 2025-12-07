@@ -1,4 +1,4 @@
-use crate::solution::{Solution, SolutionPair};
+use crate::solution::Day;
 
 const MULT_CHAR: char = '*';
 const ADD_CHAR: char = '+';
@@ -94,14 +94,18 @@ fn compute_puzzle(columns: &[Vec<u64>], operator_rows: &[char]) -> u64 {
         .sum()
 }
 
-pub fn solve(input: &str) -> SolutionPair {
-    let (columns, operator_rows) = parse_input(input);
-    let result = compute_puzzle(&columns, &operator_rows);
+pub struct Solution;
 
-    let (columns_rtl, operator_rows_rtl) = parse_input_rtl(input);
-    let result_rtl = compute_puzzle(&columns_rtl, &operator_rows_rtl);
+impl Day for Solution {
+    fn part1(input: &str) -> crate::solution::Solution {
+        let (columns, operator_rows) = parse_input(input);
+        compute_puzzle(&columns, &operator_rows).into()
+    }
 
-    (Solution::from(result), Solution::from(result_rtl))
+    fn part2(input: &str) -> crate::solution::Solution {
+        let (columns, operator_rows) = parse_input_rtl(input);
+        compute_puzzle(&columns, &operator_rows).into()
+    }
 }
 
 #[cfg(test)]

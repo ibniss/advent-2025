@@ -1,6 +1,6 @@
 use std::collections::LinkedList;
 
-use crate::solution::{Solution, SolutionPair};
+use crate::solution::Day;
 
 fn find_largest_pair_linear(line: &[u8]) -> u8 {
     let mut first = 0;
@@ -23,6 +23,7 @@ fn find_largest_pair_linear(line: &[u8]) -> u8 {
 }
 
 /// First attempt, initializing 12 numbers then considering each number linearly
+#[allow(dead_code)]
 fn find_largest_twelve_linear(line: &[u8]) -> u64 {
     let mut outputs = LinkedList::from_iter([0; 12]);
 
@@ -132,12 +133,27 @@ fn solve_part2(input: &[Vec<u8>]) -> u64 {
         .sum()
 }
 
-pub fn solve(input: &str) -> SolutionPair {
-    let processed_input = process_input(input);
+pub struct Solution;
 
-    let sum_1: u64 = solve_part1(&processed_input);
-    let sum_2: u64 = solve_part2(&processed_input);
-    (Solution::from(sum_1), Solution::from(sum_2))
+impl Day for Solution {
+    fn part1(input: &str) -> crate::solution::Solution {
+        let processed = process_input(input);
+        solve_part1(&processed).into()
+    }
+
+    fn part2(input: &str) -> crate::solution::Solution {
+        let processed = process_input(input);
+        solve_part2(&processed).into()
+    }
+
+    // Override to avoid parsing input twice
+    fn solve(input: &str) -> crate::solution::SolutionPair {
+        let processed = process_input(input);
+        (
+            solve_part1(&processed).into(),
+            solve_part2(&processed).into(),
+        )
+    }
 }
 
 #[cfg(test)]

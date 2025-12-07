@@ -3,6 +3,21 @@ use std::fmt::{Display, Formatter, Result};
 
 pub type SolutionPair = (Solution, Solution);
 
+/// Trait that all day solutions must implement.
+/// Enforces a consistent structure across all days.
+pub trait Day {
+    /// Solve part 1 of the puzzle
+    fn part1(input: &str) -> Solution;
+
+    /// Solve part 2 of the puzzle
+    fn part2(input: &str) -> Solution;
+
+    /// Solve both parts (default implementation calls part1 and part2)
+    fn solve(input: &str) -> SolutionPair {
+        (Self::part1(input), Self::part2(input))
+    }
+}
+
 #[derive(Clone)]
 pub enum Solution {
     I8(i8),
