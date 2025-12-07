@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 /// A 2D grid backed by a flat 1D array for better cache locality.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Grid<T> {
     data: Vec<T>,
     width: usize,
@@ -177,6 +177,62 @@ impl<T: Clone> std::ops::IndexMut<(usize, usize)> for Grid<T> {
     }
 }
 
+/// Display for Grid<u8> that renders bytes as characters
+impl std::fmt::Display for Grid<u8> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for y in 0..self.height {
+            for x in 0..self.width {
+                write!(f, "{}", self.data[self.index(x, y)] as char)?;
+            }
+            if y < self.height - 1 {
+                writeln!(f)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Display for Grid<char> that renders characters directly
+impl std::fmt::Display for Grid<char> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for y in 0..self.height {
+            for x in 0..self.width {
+                write!(f, "{}", self.data[self.index(x, y)])?;
+            }
+            if y < self.height - 1 {
+                writeln!(f)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Generic Debug for any Grid<T> where T: Debug
+impl<T: std::fmt::Debug> std::fmt::Debug for Grid<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Calculate max width for alignment
+        let max_width = self
+            .data
+            .iter()
+            .map(|v| format!("{:?}", v).len())
+            .max()
+            .unwrap_or(1);
+
+        writeln!(f, "Grid {}x{} {{", self.width, self.height)?;
+        for y in 0..self.height {
+            write!(f, "  ")?;
+            for x in 0..self.width {
+                if x > 0 {
+                    write!(f, " ")?;
+                }
+                write!(f, "{:>w$?}", self.data[y * self.width + x], w = max_width)?;
+            }
+            writeln!(f)?;
+        }
+        write!(f, "}}")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -243,5 +299,28 @@ mod tests {
         // Third column
         let col2: Vec<_> = grid.iter_col(2).copied().collect();
         assert_eq!(col2, vec![b'c', b'f', b'i']);
+    }
+
+    #[test]
+    fn test_display_u8() {
+        let grid = Grid::parse("abc\ndef\nghi");
+        let display = format!("{}", grid);
+        assert_eq!(display, "abc\ndef\nghi");
+    }
+
+    #[test]
+    fn test_debug_u8() {
+        let grid = Grid::parse("ab\ncd");
+        let debug = format!("{:?}", grid);
+        // u8 Debug shows numeric values, right-aligned
+        assert_eq!(debug, "Grid 2x2 {\n   97  98\n   99 100\n}");
+    }
+
+    #[test]
+    fn test_debug_numeric() {
+        let grid = Grid::from_rows(vec![vec![1, 20], vec![300, 4]]);
+        let debug = format!("{:?}", grid);
+        // Numbers are right-aligned to max width
+        assert_eq!(debug, "Grid 2x2 {\n    1  20\n  300   4\n}");
     }
 }

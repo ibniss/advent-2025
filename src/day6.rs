@@ -31,7 +31,9 @@ fn parse_input(input: &str) -> (Grid<u64>, Vec<char>) {
     (rows_grid, operator_rows)
 }
 
-fn parse_input_rtl(input: &str) -> (Grid<&str>, Vec<(usize, char)>) {
+/// Returns a Vec of columns where each column is a sequence of numbers
+/// (read top-to-bottom as digits of RTL numbers) and a Vec of operators
+fn parse_input_rtl(input: &str) -> (Vec<Vec<u64>>, Vec<char>) {
     let raw_lines = input.lines().map(|line| line).collect::<Vec<_>>();
     let line_count = raw_lines.len();
 
@@ -60,11 +62,10 @@ fn parse_input_rtl(input: &str) -> (Grid<&str>, Vec<(usize, char)>) {
     // First do a pass through each row, separating each number into its own string digits
     // utilizing the digit count to split correctly with padding
     // e.g.
-    // ["123, "328", " 51", "64 "]
-    let num_rows: Vec<Vec<&str>> = raw_lines[0..line_count - 1]
+    // ["123, "328", " 51", "64 "] -> reversed -> [[" ", "4", "6"], ["1", "5", " "], ...]
+    let num_rows: Vec<Vec<Vec<char>>> = raw_lines[0..line_count - 1]
         .iter()
         .map(|&line| {
-            dbg!(line);
             operator_rows
                 .iter()
                 .scan(line, |remaining, (digit_count, _)| {
@@ -74,8 +75,9 @@ fn parse_input_rtl(input: &str) -> (Grid<&str>, Vec<(usize, char)>) {
                     }
 
                     if remaining.len() < (*digit_count + 1) {
-                        let next_num = *remaining;
-                        dbg!(next_num);
+                        // Pad to the right with spaces to match the digit count
+                        let spaces = std::iter::repeat(' ').take(*digit_count - remaining.len());
+                        let next_num = remaining.chars().chain(spaces).rev().collect::<Vec<_>>();
                         *remaining = "";
                         return Some(next_num);
                     }
@@ -83,17 +85,47 @@ fn parse_input_rtl(input: &str) -> (Grid<&str>, Vec<(usize, char)>) {
                     let (next_num, res) = remaining.split_at(*digit_count + 1);
                     *remaining = res;
                     // slice off the separator
-                    let next_num = &next_num[0..*digit_count];
+                    let next_num = next_num[0..*digit_count].chars().rev().collect::<Vec<_>>();
                     Some(next_num)
                 })
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
 
-    // TODO: for each col e.g. ["64 ", "23 ", "314"], need to
-    // go through the numbers (maybe reverse strings first?) and reorient the matrix
+    let row_chars_grid = Grid::from_rows(num_rows);
 
-    (Grid::from_rows(num_rows), operator_rows)
+    let parsed_columns: Vec<Vec<u64>> = row_chars_grid
+        .iter_cols()
+        .map(|col_iter| {
+            // Turn the column into a sub-grid of chars, which are now in the right order
+            let sub_grid = Grid::from_rows(col_iter.cloned().collect());
+
+            // now, we have shape of e.g.
+            // [" ", "4, "6"]
+            // [" ", "3", "2"]
+            // ["4", "1", "3"]
+            // Most significant digit is at the top.
+            // So go through each column and collect the digits in order
+            sub_grid
+                .iter_cols()
+                .map(|sub_col_iter| {
+                    // filter out non-digits (gets rid of leading whitespace) and fold into a number
+                    sub_col_iter
+                        .filter(|&ch| ch.is_ascii_digit())
+                        .fold(0, |acc, ch| {
+                            acc * 10 + ch.to_digit(10).expect("Invalid digit") as u64
+                        })
+                })
+                .collect()
+        })
+        .collect();
+
+    // extract just the operators, no need for the counts anymore
+    let operators: Vec<char> = operator_rows.iter().map(|(_, op)| *op).collect();
+
+    // Return parsed_columns directly - each column may have different number of values
+    // (different digit counts), so we can't use a uniform Grid
+    (parsed_columns, operators)
 }
 
 fn compute_puzzle(rows_grid: &Grid<u64>, operator_rows: &[char]) -> u64 {
@@ -115,7 +147,7 @@ fn compute_puzzle(rows_grid: &Grid<u64>, operator_rows: &[char]) -> u64 {
     mult_total + add_total
 }
 
-fn compute_puzzle_rtl(rows_grid: &Grid<&str>, operator_rows: &[char]) -> u64 {
+fn compute_puzzle_rtl(columns: &[Vec<u64>], operator_rows: &[char]) -> u64 {
     let (mult_ops, add_ops): (Vec<_>, Vec<_>) = operator_rows
         .iter()
         .enumerate()
@@ -123,20 +155,26 @@ fn compute_puzzle_rtl(rows_grid: &Grid<&str>, operator_rows: &[char]) -> u64 {
 
     let mult_total: u64 = mult_ops
         .iter()
-        .map(|(x, _)| {
-            rows_grid.iter_col(*x).map(|num_str|{
-            })
-        })
+        .map(|(idx, _)| columns[*idx].iter().product::<u64>())
         .sum();
+
+    let add_total: u64 = add_ops
+        .iter()
+        .map(|(idx, _)| columns[*idx].iter().sum::<u64>())
+        .sum();
+
+    mult_total + add_total
 }
 
 pub fn solve(input: &str) -> SolutionPair {
     let (rows_grid, operator_rows) = parse_input(input);
     let result = compute_puzzle(&rows_grid, &operator_rows);
-    (Solution::from(result), Solution::from(0))
+
+    let (columns_rtl, operator_rows_rtl) = parse_input_rtl(input);
+    let result_rtl = compute_puzzle_rtl(&columns_rtl, &operator_rows_rtl);
+
+    (Solution::from(result), Solution::from(result_rtl))
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -157,9 +195,8 @@ mod tests {
 
     #[test]
     fn test_solve_rtl() {
-        let (rows_grid, operator_rows) = parse_input_rtl(TEST_INPUT);
-        dbg!(&rows_grid);
-        dbg!(&operator_rows);
-        assert_eq!(false, true);
+        let (columns, operator_rows) = parse_input_rtl(TEST_INPUT);
+        let result = compute_puzzle_rtl(&columns, &operator_rows);
+        assert_eq!(result, 3263827);
     }
 }
