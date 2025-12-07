@@ -11,6 +11,7 @@ mod day5;
 mod day6;
 mod grid;
 mod solution;
+mod utils;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

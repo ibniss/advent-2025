@@ -1,7 +1,4 @@
-use crate::{
-    grid::Grid,
-    solution::{Solution, SolutionPair},
-};
+use crate::solution::{Solution, SolutionPair};
 
 const MULT_CHAR: char = '*';
 const ADD_CHAR: char = '+';
@@ -35,101 +32,52 @@ fn parse_input(input: &str) -> (Vec<Vec<u64>>, Vec<char>) {
     (columns, operators)
 }
 
-/// Returns a Vec of columns where each column is a sequence of numbers
-/// (read top-to-bottom as digits of RTL numbers) and a Vec of operators
+/// Returns a Vec of problems where each problem is a sequence of numbers
+/// (each column read top-to-bottom is one number) and a Vec of operators.
+/// Columns are read right-to-left.
 fn parse_input_rtl(input: &str) -> (Vec<Vec<u64>>, Vec<char>) {
-    let raw_lines = input.lines().collect::<Vec<_>>();
-    let (operators_line, raw_num_lines) = raw_lines
+    let raw_lines: Vec<&[u8]> = input.lines().map(|l| l.as_bytes()).collect();
+    let (op_line, num_lines) = raw_lines
         .split_last()
         .expect("Invalid input, could not split");
 
-    // For RTL, keep track of how many digits are on each row so we can use this info
-    // to parse numbers differently
-    let mut operator_rows: Vec<(usize, char)> =
-        operators_line.chars().fold(Vec::new(), |mut acc, ch| {
-            // increment count of digits on this row
-            if ch.is_ascii_whitespace() {
-                if let Some((count, _)) = acc.last_mut() {
-                    *count += 1;
+    let max_len = raw_lines.iter().map(|line| line.len()).max().unwrap_or(0);
+
+    let mut operators: Vec<char> = Vec::new();
+    let mut problems: Vec<Vec<u64>> = Vec::new();
+    let mut current_numbers: Vec<u64> = Vec::new();
+
+    // Iterate columns RTL - each column is one number (digits top-to-bottom)
+    for col_idx in (0..max_len).rev() {
+        // Parse this column's digits top-to-bottom into a single number,
+        // tracking whether we found any digits to skip space-only columns
+        let (num, has_digits) =
+            num_lines.iter().fold((0u64, false), |(acc, found), line| {
+                match line.get(col_idx) {
+                    Some(b @ b'0'..=b'9') => (acc * 10 + (b - b'0') as u64, true),
+                    _ => (acc, found),
                 }
-            } else if ch == MULT_CHAR || ch == ADD_CHAR {
-                // operator found, add with 0 count
-                acc.push((0, ch));
-            } else {
-                panic!("Invalid char found");
+            });
+
+        if has_digits {
+            current_numbers.push(num);
+        }
+
+        // Check for operator - finalizes current problem
+        match op_line.get(col_idx) {
+            Some(b'*') => {
+                problems.push(std::mem::take(&mut current_numbers));
+                operators.push('*');
             }
-            acc
-        });
-    // increment last operator count by 1 to account for the separators
-    operator_rows.last_mut().map(|(count, _)| *count += 1);
+            Some(b'+') => {
+                problems.push(std::mem::take(&mut current_numbers));
+                operators.push('+');
+            }
+            _ => {}
+        }
+    }
 
-    // First do a pass through each row, separating each number into its own string digits
-    // utilizing the digit count to split correctly with padding
-    // e.g.
-    // ["123, "328", " 51", "64 "] -> reversed -> [[" ", "4", "6"], ["1", "5", " "], ...]
-    let num_rows: Vec<Vec<Vec<char>>> = raw_num_lines
-        .iter()
-        .map(|&line| {
-            operator_rows
-                .iter()
-                .scan(line, |remaining, (digit_count, _)| {
-                    // stop scanning once we've reached the end of the line
-                    if remaining.is_empty() {
-                        return None;
-                    }
-
-                    if remaining.len() < (*digit_count + 1) {
-                        // Pad to the right with spaces to match the digit count
-                        let spaces = std::iter::repeat_n(' ', *digit_count - remaining.len());
-                        let next_num = remaining.chars().chain(spaces).rev().collect();
-                        *remaining = "";
-                        return Some(next_num);
-                    }
-
-                    let (next_num, res) = remaining.split_at(*digit_count + 1);
-                    *remaining = res;
-                    // slice off the separator
-                    let next_num = next_num[0..*digit_count].chars().rev().collect();
-                    Some(next_num)
-                })
-                .collect()
-        })
-        .collect();
-
-    let row_chars_grid = Grid::from_rows(num_rows);
-
-    let parsed_columns: Vec<Vec<u64>> = row_chars_grid
-        .iter_cols()
-        .map(|col_iter| {
-            // Turn the column into a sub-grid of chars, which are now in the right order
-            let sub_grid = Grid::from_rows(col_iter.cloned().collect());
-
-            // now, we have shape of e.g.
-            // [" ", "4, "6"]
-            // [" ", "3", "2"]
-            // ["4", "1", "3"]
-            // Most significant digit is at the top.
-            // So go through each column and collect the digits in order
-            sub_grid
-                .iter_cols()
-                .map(|sub_col_iter| {
-                    // filter out non-digits (gets rid of leading whitespace) and fold into a number
-                    sub_col_iter
-                        .filter(|&ch| ch.is_ascii_digit())
-                        .fold(0, |acc, ch| {
-                            acc * 10 + ch.to_digit(10).expect("Invalid digit") as u64
-                        })
-                })
-                .collect()
-        })
-        .collect();
-
-    // extract just the operators, no need for the counts anymore
-    let operators: Vec<char> = operator_rows.iter().map(|(_, op)| *op).collect();
-
-    // Return parsed_columns directly - each column may have different number of values
-    // (different digit counts), so we can't use a uniform Grid
-    (parsed_columns, operators)
+    (problems, operators)
 }
 
 /// Given a slice of columns, each column is a Vec of numbers, compute the puzzle
