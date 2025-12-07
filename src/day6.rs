@@ -6,7 +6,7 @@ use crate::{
 const MULT_CHAR: char = '*';
 const ADD_CHAR: char = '+';
 
-fn parse_input(input: &str) -> (Grid<u64>, Vec<char>) {
+fn parse_input(input: &str) -> (Vec<Vec<u64>>, Vec<char>) {
     let raw_lines = input.lines().map(|line| line.trim()).collect::<Vec<_>>();
     let line_count = raw_lines.len();
 
@@ -19,6 +19,13 @@ fn parse_input(input: &str) -> (Grid<u64>, Vec<char>) {
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
+
+    let rows_grid = Grid::from_rows(num_rows);
+    let numbers: Vec<Vec<u64>> = rows_grid
+        .iter_cols()
+        .map(|col_iter| col_iter.cloned().collect::<Vec<u64>>())
+        .collect::<Vec<_>>();
+
     let operator_rows: Vec<char> = raw_lines
         .last()
         .unwrap()
@@ -26,9 +33,7 @@ fn parse_input(input: &str) -> (Grid<u64>, Vec<char>) {
         .map(|str| str.chars().next().expect("Empty operator"))
         .collect();
 
-    let rows_grid = Grid::from_rows(num_rows);
-
-    (rows_grid, operator_rows)
+    (numbers, operator_rows)
 }
 
 /// Returns a Vec of columns where each column is a sequence of numbers
@@ -128,26 +133,9 @@ fn parse_input_rtl(input: &str) -> (Vec<Vec<u64>>, Vec<char>) {
     (parsed_columns, operators)
 }
 
-fn compute_puzzle(rows_grid: &Grid<u64>, operator_rows: &[char]) -> u64 {
-    let (mult_ops, add_ops): (Vec<_>, Vec<_>) = operator_rows
-        .iter()
-        .enumerate()
-        .partition(|(_, op)| **op == MULT_CHAR);
-
-    let mult_total: u64 = mult_ops
-        .iter()
-        .map(|(x, _)| rows_grid.iter_col(*x).product::<u64>())
-        .sum();
-
-    let add_total: u64 = add_ops
-        .iter()
-        .map(|(x, _)| rows_grid.iter_col(*x).sum::<u64>())
-        .sum();
-
-    mult_total + add_total
-}
-
-fn compute_puzzle_rtl(columns: &[Vec<u64>], operator_rows: &[char]) -> u64 {
+/// Given a slice of columns, each column is a Vec of numbers, compute the puzzle
+/// by applying the operators to the numbers
+fn compute_puzzle(columns: &[Vec<u64>], operator_rows: &[char]) -> u64 {
     let (mult_ops, add_ops): (Vec<_>, Vec<_>) = operator_rows
         .iter()
         .enumerate()
@@ -167,11 +155,11 @@ fn compute_puzzle_rtl(columns: &[Vec<u64>], operator_rows: &[char]) -> u64 {
 }
 
 pub fn solve(input: &str) -> SolutionPair {
-    let (rows_grid, operator_rows) = parse_input(input);
-    let result = compute_puzzle(&rows_grid, &operator_rows);
+    let (columns, operator_rows) = parse_input(input);
+    let result = compute_puzzle(&columns, &operator_rows);
 
     let (columns_rtl, operator_rows_rtl) = parse_input_rtl(input);
-    let result_rtl = compute_puzzle_rtl(&columns_rtl, &operator_rows_rtl);
+    let result_rtl = compute_puzzle(&columns_rtl, &operator_rows_rtl);
 
     (Solution::from(result), Solution::from(result_rtl))
 }
@@ -188,15 +176,15 @@ mod tests {
 
     #[test]
     fn test_solve() {
-        let (rows_grid, operator_rows) = parse_input(TEST_INPUT);
-        let result = compute_puzzle(&rows_grid, &operator_rows);
+        let (columns, operator_rows) = parse_input(TEST_INPUT);
+        let result = compute_puzzle(&columns, &operator_rows);
         assert_eq!(result, 4277556);
     }
 
     #[test]
     fn test_solve_rtl() {
         let (columns, operator_rows) = parse_input_rtl(TEST_INPUT);
-        let result = compute_puzzle_rtl(&columns, &operator_rows);
+        let result = compute_puzzle(&columns, &operator_rows);
         assert_eq!(result, 3263827);
     }
 }
