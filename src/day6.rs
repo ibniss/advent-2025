@@ -7,60 +7,59 @@ const MULT_CHAR: char = '*';
 const ADD_CHAR: char = '+';
 
 fn parse_input(input: &str) -> (Vec<Vec<u64>>, Vec<char>) {
-    let raw_lines = input.lines().map(|line| line.trim()).collect::<Vec<_>>();
-    let line_count = raw_lines.len();
+    let raw_lines: Vec<_> = input.lines().map(|line| line.trim()).collect();
+    let (operators_line, raw_num_lines) = raw_lines
+        .split_last()
+        .expect("Invalid input, could not split");
 
-    let num_rows: Vec<Vec<u64>> = raw_lines[0..line_count - 1]
+    let num_rows: Vec<Vec<u64>> = raw_num_lines
         .iter()
         .map(|line| {
-            line.trim()
-                .split_whitespace()
+            line.split_whitespace()
                 .map(|num| num.parse().expect("Invalid number"))
-                .collect::<Vec<_>>()
+                .collect()
         })
-        .collect::<Vec<_>>();
-
-    let rows_grid = Grid::from_rows(num_rows);
-    let numbers: Vec<Vec<u64>> = rows_grid
-        .iter_cols()
-        .map(|col_iter| col_iter.cloned().collect::<Vec<u64>>())
-        .collect::<Vec<_>>();
-
-    let operator_rows: Vec<char> = raw_lines
-        .last()
-        .unwrap()
-        .split_whitespace()
-        .map(|str| str.chars().next().expect("Empty operator"))
         .collect();
 
-    (numbers, operator_rows)
+    // Transpose rows to columns
+    let col_count = num_rows[0].len();
+    let columns: Vec<Vec<u64>> = (0..col_count)
+        .map(|col_idx| num_rows.iter().map(|row| row[col_idx]).collect())
+        .collect();
+
+    let operators: Vec<char> = operators_line
+        .split_whitespace()
+        .map(|s| s.chars().next().expect("Empty operator"))
+        .collect();
+
+    (columns, operators)
 }
 
 /// Returns a Vec of columns where each column is a sequence of numbers
 /// (read top-to-bottom as digits of RTL numbers) and a Vec of operators
 fn parse_input_rtl(input: &str) -> (Vec<Vec<u64>>, Vec<char>) {
-    let raw_lines = input.lines().map(|line| line).collect::<Vec<_>>();
-    let line_count = raw_lines.len();
+    let raw_lines = input.lines().collect::<Vec<_>>();
+    let (operators_line, raw_num_lines) = raw_lines
+        .split_last()
+        .expect("Invalid input, could not split");
 
     // For RTL, keep track of how many digits are on each row so we can use this info
     // to parse numbers differently
     let mut operator_rows: Vec<(usize, char)> =
-        raw_lines
-            .last()
-            .unwrap()
-            .chars()
-            .fold(Vec::new(), |mut acc, ch| {
-                // increment count of digits on this row
-                if ch.is_ascii_whitespace() {
-                    acc.last_mut().map(|(count, _)| *count += 1);
-                } else if ch == MULT_CHAR || ch == ADD_CHAR {
-                    // operator found, add with 0 count
-                    acc.push((0, ch));
-                } else {
-                    panic!("Invalid char found");
+        operators_line.chars().fold(Vec::new(), |mut acc, ch| {
+            // increment count of digits on this row
+            if ch.is_ascii_whitespace() {
+                if let Some((count, _)) = acc.last_mut() {
+                    *count += 1;
                 }
-                acc
-            });
+            } else if ch == MULT_CHAR || ch == ADD_CHAR {
+                // operator found, add with 0 count
+                acc.push((0, ch));
+            } else {
+                panic!("Invalid char found");
+            }
+            acc
+        });
     // increment last operator count by 1 to account for the separators
     operator_rows.last_mut().map(|(count, _)| *count += 1);
 
@@ -68,7 +67,7 @@ fn parse_input_rtl(input: &str) -> (Vec<Vec<u64>>, Vec<char>) {
     // utilizing the digit count to split correctly with padding
     // e.g.
     // ["123, "328", " 51", "64 "] -> reversed -> [[" ", "4", "6"], ["1", "5", " "], ...]
-    let num_rows: Vec<Vec<Vec<char>>> = raw_lines[0..line_count - 1]
+    let num_rows: Vec<Vec<Vec<char>>> = raw_num_lines
         .iter()
         .map(|&line| {
             operator_rows
@@ -81,8 +80,8 @@ fn parse_input_rtl(input: &str) -> (Vec<Vec<u64>>, Vec<char>) {
 
                     if remaining.len() < (*digit_count + 1) {
                         // Pad to the right with spaces to match the digit count
-                        let spaces = std::iter::repeat(' ').take(*digit_count - remaining.len());
-                        let next_num = remaining.chars().chain(spaces).rev().collect::<Vec<_>>();
+                        let spaces = std::iter::repeat_n(' ', *digit_count - remaining.len());
+                        let next_num = remaining.chars().chain(spaces).rev().collect();
                         *remaining = "";
                         return Some(next_num);
                     }
@@ -90,12 +89,12 @@ fn parse_input_rtl(input: &str) -> (Vec<Vec<u64>>, Vec<char>) {
                     let (next_num, res) = remaining.split_at(*digit_count + 1);
                     *remaining = res;
                     // slice off the separator
-                    let next_num = next_num[0..*digit_count].chars().rev().collect::<Vec<_>>();
+                    let next_num = next_num[0..*digit_count].chars().rev().collect();
                     Some(next_num)
                 })
-                .collect::<Vec<_>>()
+                .collect()
         })
-        .collect::<Vec<_>>();
+        .collect();
 
     let row_chars_grid = Grid::from_rows(num_rows);
 
@@ -136,22 +135,15 @@ fn parse_input_rtl(input: &str) -> (Vec<Vec<u64>>, Vec<char>) {
 /// Given a slice of columns, each column is a Vec of numbers, compute the puzzle
 /// by applying the operators to the numbers
 fn compute_puzzle(columns: &[Vec<u64>], operator_rows: &[char]) -> u64 {
-    let (mult_ops, add_ops): (Vec<_>, Vec<_>) = operator_rows
+    columns
         .iter()
-        .enumerate()
-        .partition(|(_, op)| **op == MULT_CHAR);
-
-    let mult_total: u64 = mult_ops
-        .iter()
-        .map(|(idx, _)| columns[*idx].iter().product::<u64>())
-        .sum();
-
-    let add_total: u64 = add_ops
-        .iter()
-        .map(|(idx, _)| columns[*idx].iter().sum::<u64>())
-        .sum();
-
-    mult_total + add_total
+        .zip(operator_rows)
+        .map(|(col, op)| match *op {
+            MULT_CHAR => col.iter().product::<u64>(),
+            ADD_CHAR => col.iter().sum::<u64>(),
+            _ => panic!("Invalid operator"),
+        })
+        .sum()
 }
 
 pub fn solve(input: &str) -> SolutionPair {
