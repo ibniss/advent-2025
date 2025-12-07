@@ -19,10 +19,27 @@ impl<T: Clone> Grid<T> {
     }
 
     /// Create a grid from a 2D vector (row-major order).
-    pub fn from_vecs(vecs: Vec<Vec<T>>) -> Self {
-        let height = vecs.len();
-        let width = vecs.first().map_or(0, |row| row.len());
-        let data = vecs.into_iter().flatten().collect();
+    pub fn from_rows(rows: Vec<Vec<T>>) -> Self {
+        let height = rows.len();
+        let width = rows.first().map_or(0, |row| row.len());
+        let data = rows.into_iter().flatten().collect();
+        Self {
+            data,
+            width,
+            height,
+        }
+    }
+
+    /// Create a grid from a 2D vector of columns.
+    pub fn from_cols(cols: Vec<Vec<T>>) -> Self {
+        let width = cols.len();
+        let height = cols.first().map_or(0, |col| col.len());
+        let mut data = Vec::with_capacity(width * height);
+        for y in 0..height {
+            for col in &cols {
+                data.push(col[y].clone());
+            }
+        }
         Self {
             data,
             width,
@@ -81,6 +98,40 @@ impl<T: Clone> Grid<T> {
         })
     }
 
+    /// Iterate over all cells in a given row (left to right).
+    /// Panics if the row index is out of bounds.
+    pub fn iter_row(&self, y: usize) -> impl Iterator<Item = &T> {
+        assert!(
+            y < self.height,
+            "row index {y} out of bounds (height: {})",
+            self.height
+        );
+        let start = self.index(0, y);
+        let end = start + self.width;
+        self.data[start..end].iter()
+    }
+
+    /// Iterate over all cells in a given column (top to bottom).
+    /// Panics if the column index is out of bounds.
+    pub fn iter_col(&self, x: usize) -> impl Iterator<Item = &T> + '_ {
+        assert!(
+            x < self.width,
+            "column index {x} out of bounds (width: {})",
+            self.width
+        );
+        (0..self.height).map(move |y| &self.data[self.index(x, y)])
+    }
+
+    /// Iterate over all rows, yielding an iterator for each row.
+    pub fn iter_rows(&self) -> impl Iterator<Item = impl Iterator<Item = &T>> {
+        (0..self.height).map(move |y| self.iter_row(y))
+    }
+
+    /// Iterate over all columns, yielding an iterator for each column.
+    pub fn iter_cols(&self) -> impl Iterator<Item = impl Iterator<Item = &T> + '_> + '_ {
+        (0..self.width).map(move |x| self.iter_col(x))
+    }
+
     /// Get the 8 neighboring positions (excluding out-of-bounds).
     #[inline]
     pub fn neighbors(&self, x: usize, y: usize) -> impl Iterator<Item = (usize, usize)> {
@@ -105,7 +156,7 @@ impl Grid<u8> {
     /// Parse a grid from a string where each character becomes a u8.
     pub fn parse(input: &str) -> Self {
         let vecs: Vec<Vec<u8>> = input.lines().map(|line| line.as_bytes().to_vec()).collect();
-        Self::from_vecs(vecs)
+        Self::from_rows(vecs)
     }
 }
 
@@ -158,5 +209,39 @@ mod tests {
         // Center - should have 8 neighbors
         let center: Vec<_> = grid.neighbors(1, 1).collect();
         assert_eq!(center.len(), 8);
+    }
+
+    #[test]
+    fn test_iter_row() {
+        let grid = Grid::parse("abc\ndef\nghi");
+
+        // First row
+        let row0: Vec<_> = grid.iter_row(0).copied().collect();
+        assert_eq!(row0, vec![b'a', b'b', b'c']);
+
+        // Second row
+        let row1: Vec<_> = grid.iter_row(1).copied().collect();
+        assert_eq!(row1, vec![b'd', b'e', b'f']);
+
+        // Third row
+        let row2: Vec<_> = grid.iter_row(2).copied().collect();
+        assert_eq!(row2, vec![b'g', b'h', b'i']);
+    }
+
+    #[test]
+    fn test_iter_col() {
+        let grid = Grid::parse("abc\ndef\nghi");
+
+        // First column
+        let col0: Vec<_> = grid.iter_col(0).copied().collect();
+        assert_eq!(col0, vec![b'a', b'd', b'g']);
+
+        // Second column
+        let col1: Vec<_> = grid.iter_col(1).copied().collect();
+        assert_eq!(col1, vec![b'b', b'e', b'h']);
+
+        // Third column
+        let col2: Vec<_> = grid.iter_col(2).copied().collect();
+        assert_eq!(col2, vec![b'c', b'f', b'i']);
     }
 }
