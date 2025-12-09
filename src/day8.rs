@@ -1,4 +1,4 @@
-use crate::{grid::Grid, solution::Day};
+use crate::solution::Day;
 
 /// x,y,z coordinates
 #[derive(Hash, Clone, Copy, PartialEq, Eq, Debug)]
@@ -75,28 +75,27 @@ impl DisjointSet {
     }
 
     /// Replaces the set containing x and the set containing y with their union
-    fn union(&mut self, x: usize, y: usize) {
-        println!("Unioning {} and {}", x, y);
-
+    /// Returns true if the union was successful (x,y were not already in the same set), false otherwise
+    fn union(&mut self, x: usize, y: usize) -> bool {
         // find roots of both
-        let x = self.find(x);
-        let y = self.find(y);
-
-        println!("Root(x) = {}, Root(y) = {}", x, y);
+        let mut x = self.find(x);
+        let mut y = self.find(y);
 
         // nothing to do, they already belong to the same set
         if x == y {
-            return;
+            return false;
         }
 
         // swap so x has >= descendants than y
         if self.size[x] < self.size[y] {
-            let (x, y) = (y, x);
+            (x, y) = (y, x);
         }
 
         // Make x the new root (y now points to x)
         self.parent[y] = x;
         self.size[x] = self.size[x] + self.size[y];
+
+        true
     }
 
     /// Find indexes of all roots, i.e. items where their parent is themselves
@@ -158,12 +157,9 @@ fn solve(boxes: &[Coord3D], iterations: usize) -> u64 {
     let max_iters = pairs.len().min(iterations);
     (0..max_iters).for_each(|iter_idx| {
         let (x_idx, y_idx, _) = pairs[iter_idx];
-        println!("\n\n{} -> {}", &boxes[x_idx], &boxes[y_idx]);
 
         // connect x and y to same circuit
         set.union(x_idx, y_idx);
-
-        println!("Circuits: {:?}", set.circuit_sizes());
     });
 
     // after we're done, find 3 largest circuits;
@@ -172,6 +168,45 @@ fn solve(boxes: &[Coord3D], iterations: usize) -> u64 {
         .iter()
         .take(3)
         .fold(1u64, |acc, x| acc * (*x as u64))
+}
+
+fn solve_all(boxes: &[Coord3D]) -> i64 {
+    let mut set = DisjointSet::new(boxes.len());
+
+    // first add all boxes to individual circuits
+    (0..boxes.len()).for_each(|idx| set.make_set(idx));
+
+    // prepare list of pairs (N^2) of ((idx, idx, distance) between each point, sorted so it's
+    // shortest
+    let mut pairs = Vec::new();
+    for i in 0..boxes.len() {
+        for j in (i + 1)..boxes.len() {
+            // skip same element
+            if i == j {
+                continue;
+            }
+
+            let distance = boxes[i].distance(&boxes[j]);
+            pairs.push((i, j, distance));
+        }
+    }
+    pairs.sort_by(|a, b| a.2.total_cmp(&b.2));
+
+    // stack of indexes that we connected
+    let mut last_connected = (0, 0);
+
+    // do it for all pairs
+    (0..pairs.len()).for_each(|iter_idx| {
+        let (x_idx, y_idx, _) = pairs[iter_idx];
+        // connect x and y to same circuit
+        let connected = set.union(x_idx, y_idx);
+        if connected {
+            last_connected = (x_idx, y_idx);
+        }
+    });
+
+    // get last 2 boxes we connected and multiply their X coords
+    boxes[last_connected.0].x * boxes[last_connected.1].x
 }
 
 pub struct Solution;
@@ -183,7 +218,8 @@ impl Day for Solution {
     }
 
     fn part2(input: &str) -> crate::solution::Solution {
-        todo!()
+        let coords = parse_input(&input);
+        solve_all(&coords).into()
     }
 }
 
@@ -218,5 +254,12 @@ mod tests {
         let coords = parse_input(TEST_INPUT);
         let result = solve(&coords, 10);
         assert_eq!(result, 40);
+    }
+
+    #[test]
+    fn test_solve_all() {
+        let coords = parse_input(TEST_INPUT);
+        let result = solve_all(&coords);
+        assert_eq!(result, 25272);
     }
 }
