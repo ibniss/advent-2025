@@ -8,10 +8,22 @@ struct Coord3D {
     z: i64,
 }
 
-// implement debug
 impl std::fmt::Display for Coord3D {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({},{},{})", self.x, self.y, self.z)
+    }
+}
+
+impl std::str::FromStr for Coord3D {
+    type Err = std::num::ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut parts = s.split(',');
+        Ok(Self::new(
+            parts.next().unwrap().parse()?,
+            parts.next().unwrap().parse()?,
+            parts.next().unwrap().parse()?,
+        ))
     }
 }
 
@@ -27,18 +39,13 @@ impl Coord3D {
             .sqrt()
     }
 
-    fn from_str(s: &str) -> Self {
-        let mut parts = s.split(',');
-        Self::new(
-            parts.next().unwrap().parse().unwrap(),
-            parts.next().unwrap().parse().unwrap(),
-            parts.next().unwrap().parse().unwrap(),
-        )
+    fn distance_squared(&self, other: &Self) -> i64 {
+        (self.x - other.x).pow(2) + (self.y - other.y).pow(2) + (self.z - other.z).pow(2)
     }
 }
 
 fn parse_input(input: &str) -> Vec<Coord3D> {
-    input.lines().map(Coord3D::from_str).collect()
+    input.lines().map(|l| l.parse().unwrap()).collect()
 }
 
 struct DisjointSet {
@@ -68,10 +75,9 @@ impl DisjointSet {
         if self.parent[x] != x {
             // flatten
             self.parent[x] = self.find(self.parent[x]);
-            return self.parent[x];
         }
 
-        x
+        self.parent[x]
     }
 
     /// Replaces the set containing x and the set containing y with their union
@@ -93,7 +99,7 @@ impl DisjointSet {
 
         // Make x the new root (y now points to x)
         self.parent[y] = x;
-        self.size[x] = self.size[x] + self.size[y];
+        self.size[x] += self.size[y];
 
         true
     }
@@ -114,7 +120,7 @@ impl DisjointSet {
         self.parent
             .iter()
             .enumerate()
-            .filter(|(idx, x)| *idx == **x)
+            .filter(|(idx, x)| idx == *x)
             .count()
     }
 
@@ -131,79 +137,51 @@ impl DisjointSet {
     }
 }
 
-fn solve(boxes: &[Coord3D], iterations: usize) -> u64 {
+/// Returns (DisjointSet with all elements initialized, pairs sorted by distance)
+fn prepare_circuits(boxes: &[Coord3D]) -> (DisjointSet, Vec<(usize, usize, i64)>) {
     let mut set = DisjointSet::new(boxes.len());
-
-    // first add all boxes to individual circuits
     (0..boxes.len()).for_each(|idx| set.make_set(idx));
+    let mut pairs: Vec<_> = (0..boxes.len())
+        .flat_map(|i| {
+            ((i + 1)..boxes.len()).map(move |j| (i, j, boxes[i].distance_squared(&boxes[j])))
+        })
+        .collect();
+    pairs.sort_unstable_by_key(|&(_, _, d)| d);
+    (set, pairs)
+}
 
-    // prepare list of pairs (N^2) of ((idx, idx, distance) between each point, sorted so it's
-    // shortest
-    let mut pairs = Vec::new();
-    for i in 0..boxes.len() {
-        for j in (i + 1)..boxes.len() {
-            // skip same element
-            if i == j {
-                continue;
-            }
-
-            let distance = boxes[i].distance(&boxes[j]);
-            pairs.push((i, j, distance));
-        }
-    }
-    pairs.sort_by(|a, b| a.2.total_cmp(&b.2));
+fn solve(boxes: &[Coord3D], iterations: usize) -> u64 {
+    let (mut set, pairs) = prepare_circuits(boxes);
 
     // then for each iteration (or however many boxes we have)
-    let max_iters = pairs.len().min(iterations);
-    (0..max_iters).for_each(|iter_idx| {
-        let (x_idx, y_idx, _) = pairs[iter_idx];
-
+    for &(x_idx, y_idx, _) in pairs.iter().take(iterations) {
         // connect x and y to same circuit
         set.union(x_idx, y_idx);
-    });
+    }
 
     // after we're done, find 3 largest circuits;
     // for each root, gets its size
     set.circuit_sizes()
         .iter()
         .take(3)
-        .fold(1u64, |acc, x| acc * (*x as u64))
+        .map(|&x| x as u64)
+        .product()
 }
 
 fn solve_all(boxes: &[Coord3D]) -> i64 {
-    let mut set = DisjointSet::new(boxes.len());
-
-    // first add all boxes to individual circuits
-    (0..boxes.len()).for_each(|idx| set.make_set(idx));
-
-    // prepare list of pairs (N^2) of ((idx, idx, distance) between each point, sorted so it's
-    // shortest
-    let mut pairs = Vec::new();
-    for i in 0..boxes.len() {
-        for j in (i + 1)..boxes.len() {
-            // skip same element
-            if i == j {
-                continue;
-            }
-
-            let distance = boxes[i].distance(&boxes[j]);
-            pairs.push((i, j, distance));
-        }
-    }
-    pairs.sort_by(|a, b| a.2.total_cmp(&b.2));
+    let (mut set, pairs) = prepare_circuits(boxes);
 
     // stack of indexes that we connected
     let mut last_connected = (0, 0);
 
     // do it for all pairs
-    (0..pairs.len()).for_each(|iter_idx| {
+    for iter_idx in 0..pairs.len() {
         let (x_idx, y_idx, _) = pairs[iter_idx];
         // connect x and y to same circuit
-        let connected = set.union(x_idx, y_idx);
-        if connected {
+        if set.union(x_idx, y_idx) {
             last_connected = (x_idx, y_idx);
         }
-    });
+    }
 
     // get last 2 boxes we connected and multiply their X coords
     boxes[last_connected.0].x * boxes[last_connected.1].x
@@ -213,12 +191,12 @@ pub struct Solution;
 
 impl Day for Solution {
     fn part1(input: &str) -> crate::solution::Solution {
-        let coords = parse_input(&input);
+        let coords = parse_input(input);
         solve(&coords, 1000).into()
     }
 
     fn part2(input: &str) -> crate::solution::Solution {
-        let coords = parse_input(&input);
+        let coords = parse_input(input);
         solve_all(&coords).into()
     }
 }
