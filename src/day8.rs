@@ -1,4 +1,5 @@
 use crate::solution::Day;
+use rayon::prelude::*;
 
 /// x,y,z coordinates
 #[derive(Hash, Clone, Copy, PartialEq, Eq, Debug)]
@@ -146,7 +147,8 @@ fn prepare_circuits(boxes: &[Coord3D]) -> (DisjointSet, Vec<(usize, usize, i64)>
             ((i + 1)..boxes.len()).map(move |j| (i, j, boxes[i].distance_squared(&boxes[j])))
         })
         .collect();
-    pairs.sort_unstable_by_key(|&(_, _, d)| d);
+    // sorting takes a while, parallelizing it speeds it up
+    pairs.par_sort_unstable_by_key(|&(_, _, d)| d);
     (set, pairs)
 }
 
